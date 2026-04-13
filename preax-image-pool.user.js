@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Preax Image Pool
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.3.0
 // @description  Two image pools for drag-and-drop paste into Lexical editor on preax.ru/review
 // @author       user
 // @match        https://preax.ru/*
@@ -45,11 +45,11 @@
     }
 
     #pip-wrapper.pip-collapsed {
-      transform: translateY(-50%) translateX(calc(100% - 22px));
+      transform: translateY(-50%) translateX(calc(100% - 32px));
     }
 
     #pip-toggle {
-      width: 22px;
+      width: 32px;
       height: 64px;
       flex-shrink: 0;
       background: rgba(30, 30, 30, 0.95);
@@ -64,6 +64,7 @@
       padding: 0;
       transition: background 0.15s, color 0.15s;
     }
+
 
     #pip-toggle:hover {
       background: rgba(60, 60, 60, 0.98);
@@ -149,11 +150,14 @@
     .pip-btn {
       border: none;
       border-radius: 5px;
-      padding: 3px 8px;
+      padding: 0;
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
       cursor: pointer;
       font-size: 14px;
       font-weight: 500;
-      line-height: 1.4;
+      line-height: 1;
       transition: opacity 0.1s;
       white-space: nowrap;
       display: inline-flex;
@@ -167,6 +171,8 @@
     .pip-btn-paste {
       background: #4caf50;
       color: #fff;
+      width: auto;
+      padding: 0 10px;
     }
     .pip-btn-paste:disabled {
       background: #444;
@@ -176,6 +182,11 @@
 
     .pip-btn-clip {
       background: #1565c0;
+      color: #fff;
+    }
+
+    .pip-btn-file {
+      background: #00796b;
       color: #fff;
     }
 
@@ -264,11 +275,12 @@
   function icon(path, size) {
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="currentColor"><path d="${path}"/></svg>`;
   }
-  const IC_CLIP  = 'M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z';
-  const IC_TRASH = 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z';
+  const IC_CLIP  = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.4176 14.2277C14.4176 15.2065 13.624 16 12.6452 16H3.36609C2.38727 16 1.59375 15.2065 1.59375 14.2277V2.94178C1.59375 1.96296 2.38727 1.16944 3.36609 1.16944H5.10102V2.45933C5.10102 3.00313 5.54185 3.44396 6.08564 3.44396H9.92567C10.4695 3.44396 10.9103 3.00313 10.9103 2.45933V1.16944H12.6452C13.624 1.16944 14.4176 1.96296 14.4176 2.94178V14.2277ZM3.67325 11.7405H7.14904C7.1749 11.7405 7.2005 11.7456 7.22439 11.7555C7.24828 11.7654 7.26999 11.7799 7.28827 11.7982C7.30656 11.8164 7.32106 11.8381 7.33096 11.862C7.34085 11.8859 7.34595 11.9115 7.34595 11.9374C7.34595 11.9633 7.34085 11.9889 7.33096 12.0127C7.32106 12.0366 7.30656 12.0583 7.28827 12.0766C7.26999 12.0949 7.24828 12.1094 7.22439 12.1193C7.2005 12.1292 7.1749 12.1343 7.14904 12.1343H3.67325C3.64739 12.1343 3.62178 12.1292 3.59789 12.1193C3.574 12.1094 3.5523 12.0949 3.53401 12.0766C3.51573 12.0583 3.50122 12.0366 3.49133 12.0127C3.48143 11.9889 3.47634 11.9633 3.47634 11.9374C3.47634 11.9115 3.48143 11.8859 3.49133 11.862C3.50122 11.8381 3.51573 11.8164 3.53401 11.7982C3.5523 11.7799 3.574 11.7654 3.59789 11.7555C3.62178 11.7456 3.64739 11.7405 3.67325 11.7405ZM8.79337 11.7405H12.2691C12.3213 11.7405 12.3714 11.7612 12.4083 11.7982C12.4453 11.8351 12.466 11.8852 12.466 11.9374C12.466 11.9896 12.4453 12.0397 12.4083 12.0766C12.3714 12.1136 12.3213 12.1343 12.2691 12.1343H8.79337C8.76751 12.1343 8.74191 12.1292 8.71802 12.1193C8.69413 12.1094 8.67242 12.0949 8.65413 12.0766C8.63585 12.0583 8.62134 12.0366 8.61145 12.0127C8.60155 11.9889 8.59646 11.9633 8.59646 11.9374C8.59646 11.9115 8.60155 11.8859 8.61145 11.862C8.62134 11.8381 8.63585 11.8164 8.65413 11.7982C8.67242 11.7799 8.69413 11.7654 8.71802 11.7555C8.74191 11.7456 8.76751 11.7405 8.79337 11.7405ZM3.67325 7.21116H7.13917C7.1914 7.21116 7.24148 7.23191 7.27841 7.26884C7.31534 7.30577 7.33608 7.35585 7.33608 7.40808C7.33608 7.4603 7.31534 7.51038 7.27841 7.54731C7.24148 7.58424 7.1914 7.60499 7.13917 7.60499H3.67325C3.62102 7.60499 3.57094 7.58424 3.53401 7.54731C3.49708 7.51038 3.47634 7.4603 3.47634 7.40808C3.47634 7.35585 3.49708 7.30577 3.53401 7.26884C3.57094 7.23191 3.62102 7.21116 3.67325 7.21116ZM8.79337 7.21116H12.2592C12.3115 7.21116 12.3615 7.23191 12.3985 7.26884C12.4354 7.30577 12.4561 7.35585 12.4561 7.40808C12.4561 7.4603 12.4354 7.51038 12.3985 7.54731C12.3615 7.58424 12.3115 7.60499 12.2592 7.60499H8.79337C8.74115 7.60499 8.69106 7.58424 8.65413 7.54731C8.61721 7.51038 8.59646 7.4603 8.59646 7.40808C8.59646 7.35585 8.61721 7.30577 8.65413 7.26884C8.69106 7.23191 8.74115 7.21116 8.79337 7.21116Z" fill="currentColor"/><path d="M6.68272 1.12709C6.64678 1.15548 6.60207 1.17046 6.55627 1.16944H5.49484V2.45933C5.49484 2.61602 5.55709 2.7663 5.66788 2.87709C5.77868 2.98789 5.92895 3.05014 6.08564 3.05014H9.93553C10.0922 3.05014 10.2425 2.98789 10.3533 2.87709C10.4641 2.7663 10.5263 2.61602 10.5263 2.45933V1.16944H9.46686C9.42106 1.17046 9.37635 1.15548 9.34041 1.12709C9.30447 1.09869 9.27955 1.05865 9.26995 1.01387C9.2074 0.726632 9.04848 0.469435 8.81956 0.285002C8.59065 0.100569 8.30553 0 8.01157 0C7.7176 0 7.43248 0.100569 7.20357 0.285002C6.97465 0.469435 6.81573 0.726632 6.75318 1.01387C6.74358 1.05865 6.71866 1.09869 6.68272 1.12709Z" fill="currentColor"/></svg>`;
+  const IC_TRASH = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.225 0.553125C5.39375 0.2125 5.74062 0 6.11875 0H9.88125C10.2594 0 10.6062 0.2125 10.775 0.553125L11 1H14C14.5531 1 15 1.44687 15 2C15 2.55312 14.5531 3 14 3H2C1.44687 3 1 2.55312 1 2C1 1.44687 1.44687 1 2 1H5L5.225 0.553125ZM2 4H14V14C14 15.1031 13.1031 16 12 16H4C2.89688 16 2 15.1031 2 14V4ZM5 6C4.725 6 4.5 6.225 4.5 6.5V13.5C4.5 13.775 4.725 14 5 14C5.275 14 5.5 13.775 5.5 13.5V6.5C5.5 6.225 5.275 6 5 6ZM8 6C7.725 6 7.5 6.225 7.5 6.5V13.5C7.5 13.775 7.725 14 8 14C8.275 14 8.5 13.775 8.5 13.5V6.5C8.5 6.225 8.275 6 8 6ZM11 6C10.725 6 10.5 6.225 10.5 6.5V13.5C10.5 13.775 10.725 14 11 14C11.275 14 11.5 13.775 11.5 13.5V6.5C11.5 6.225 11.275 6 11 6Z" fill="currentColor"/></svg>`;
+  const IC_FILE  = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.8781 8.30978C16.374 6.81395 16.374 4.39152 14.8781 2.89569C13.5544 1.57196 11.4682 1.39987 9.94589 2.48798L9.90353 2.51711C9.5223 2.7898 9.43493 3.31929 9.70762 3.69788C9.98031 4.07647 10.5098 4.16648 10.8884 3.89379L10.9308 3.86467C11.7806 3.2584 12.9428 3.35371 13.6788 4.09235C14.5128 4.92631 14.5128 6.27652 13.6788 7.11047L10.7084 10.0862C9.87441 10.9202 8.5242 10.9202 7.69025 10.0862C6.9516 9.34759 6.85629 8.18535 7.46256 7.33815L7.49168 7.29579C7.76437 6.91456 7.67436 6.38506 7.29577 6.11502C6.91718 5.84498 6.38504 5.93235 6.115 6.31093L6.08588 6.35329C4.99512 7.87294 5.1672 9.95915 6.49094 11.2829C7.98676 12.7787 10.4092 12.7787 11.905 11.2829L14.8781 8.30978ZM1.12187 7.69027C-0.373955 9.18609 -0.373955 11.6085 1.12187 13.1043C2.4456 14.4281 4.53181 14.6002 6.05411 13.5121L6.09647 13.4829C6.4777 13.2102 6.56507 12.6808 6.29238 12.3022C6.01969 11.9236 5.4902 11.8336 5.11161 12.1063L5.06925 12.1354C4.21941 12.7416 3.05717 12.6463 2.32117 11.9077C1.48722 11.0711 1.48722 9.72088 2.32117 8.88693L5.29164 5.91381C6.12559 5.07986 7.4758 5.07986 8.30975 5.91381C9.0484 6.65246 9.14371 7.8147 8.53744 8.66454L8.50832 8.7069C8.23563 9.08813 8.32564 9.61763 8.70423 9.88767C9.08282 10.1577 9.61496 10.0703 9.885 9.69176L9.91412 9.6494C11.0049 8.1271 10.8328 6.04089 9.50906 4.71716C8.01324 3.22133 5.5908 3.22133 4.09498 4.71716L1.12187 7.69027Z" fill="currentColor"/></svg>`;
   const IC_CLOSE = 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z';
-  const IC_RIGHT = 'M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z';
-  const IC_LEFT  = 'M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z';
+  const IC_RIGHT = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12.2366 7.19313C12.6828 7.63941 12.6828 8.36416 12.2366 8.81044L5.38171 15.6653C4.93543 16.1116 4.21068 16.1116 3.7644 15.6653C3.31812 15.219 3.31812 14.4943 3.7644 14.048L9.81237 8L3.76797 1.95202C3.32169 1.50575 3.32169 0.780988 3.76797 0.334709C4.21425 -0.11157 4.939 -0.11157 5.38528 0.334709L12.2401 7.18956L12.2366 7.19313Z" fill="currentColor"/></svg>`;
+  const IC_LEFT  = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="transform:rotate(180deg)"><path d="M12.2366 7.19313C12.6828 7.63941 12.6828 8.36416 12.2366 8.81044L5.38171 15.6653C4.93543 16.1116 4.21068 16.1116 3.7644 15.6653C3.31812 15.219 3.31812 14.4943 3.7644 14.048L9.81237 8L3.76797 1.95202C3.32169 1.50575 3.32169 0.780988 3.76797 0.334709C4.21425 -0.11157 4.939 -0.11157 5.38528 0.334709L12.2401 7.18956L12.2366 7.19313Z" fill="currentColor"/></svg>`;
 
   // ─── Build UI ─────────────────────────────────────────────────────────────────
   const wrapper = document.createElement('div');
@@ -276,7 +288,7 @@
 
   const toggleBtn = document.createElement('button');
   toggleBtn.id = 'pip-toggle';
-  toggleBtn.innerHTML = icon(IC_RIGHT, 14);
+  toggleBtn.innerHTML = IC_RIGHT;
   toggleBtn.title = 'Скрыть / показать панели';
   toggleBtn.addEventListener('click', toggleCollapsed);
   wrapper.appendChild(toggleBtn);
@@ -314,12 +326,12 @@
   // Restore collapsed state
   if (localStorage.getItem('pip-collapsed') === '1') {
     wrapper.classList.add('pip-collapsed');
-    toggleBtn.innerHTML = icon(IC_LEFT, 14);
+    toggleBtn.innerHTML = IC_LEFT;
   }
 
   function toggleCollapsed() {
     const collapsed = wrapper.classList.toggle('pip-collapsed');
-    toggleBtn.innerHTML = icon(collapsed ? IC_LEFT : IC_RIGHT, 14);
+    toggleBtn.innerHTML = collapsed ? IC_LEFT : IC_RIGHT;
     localStorage.setItem('pip-collapsed', collapsed ? '1' : '0');
   }
 
@@ -340,8 +352,8 @@
 
     const btnClip = document.createElement('button');
     btnClip.className = 'pip-btn pip-btn-clip';
-    btnClip.innerHTML = icon(IC_CLIP, 15);
-    btnClip.title = 'Вставить из буфера / активировать Ctrl+V захват';
+    btnClip.innerHTML = IC_CLIP;
+    btnClip.title = 'Вставить изображение из буфера обмена в пул';
     btnClip.addEventListener('click', () => readClipboardToPool(idx));
 
     const btnPaste = document.createElement('button');
@@ -353,7 +365,7 @@
 
     const btnClear = document.createElement('button');
     btnClear.className = 'pip-btn pip-btn-clear';
-    btnClear.innerHTML = icon(IC_TRASH, 15);
+    btnClear.innerHTML = IC_TRASH;
     btnClear.title = 'Очистить пул';
     btnClear.addEventListener('click', () => clearPool(idx));
 
@@ -363,7 +375,14 @@
       selectPool(idx);
     });
 
+    const btnFile = document.createElement('button');
+    btnFile.className = 'pip-btn pip-btn-file';
+    btnFile.innerHTML = IC_FILE;
+    btnFile.title = 'Добавить файл с диска';
+    btnFile.addEventListener('click', () => pickFiles(idx));
+
     header.appendChild(titleWrap);
+    header.appendChild(btnFile);
     header.appendChild(btnClip);
     header.appendChild(btnPaste);
     header.appendChild(btnClear);
@@ -371,9 +390,9 @@
     const dropzone = document.createElement('div');
     dropzone.className = 'pip-dropzone';
     dropzone.id = `pip-dropzone-${idx}`;
-    dropzone.innerHTML = `<div class="pip-placeholder">Перетащите изображения<br>или нажмите для выбора</div>`;
+    dropzone.innerHTML = `<div class="pip-placeholder">Перетащите изображения<br>или кликните для захвата Ctrl+V</div>`;
 
-    dropzone.addEventListener('click', () => pickFiles(idx));
+    dropzone.addEventListener('click', () => selectPool(idx));
     dropzone.addEventListener('dragover', (e) => {
       e.preventDefault();
       el.classList.add('pip-drag-over');
@@ -659,6 +678,10 @@
 
   // ─── Pool selection + Ctrl+V → add to pool ───────────────────────────────────
   function selectPool(idx) {
+    if (selectedPoolIdx === idx) {
+      deselectPool();
+      return;
+    }
     selectedPoolIdx = idx;
     panels.forEach(({ el }, i) => el.classList.toggle('pip-selected', i === idx));
   }
