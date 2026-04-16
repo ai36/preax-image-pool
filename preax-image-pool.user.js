@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Preax Image Pool
 // @namespace    http://tampermonkey.net/
-// @version      1.3.0
+// @version      1.3.1
 // @description  Two image pools for drag-and-drop paste into Lexical editor on preax.ru/review
 // @author       user
 // @match        https://preax.ru/*
@@ -29,6 +29,9 @@
   let lastActiveIdx = -1;
   // Timer for delayed auto-paste (cancelled/rescheduled on each navigation)
   let autoPasteTimer = null;
+  // Current state of the image viewer modal
+  let viewerPoolIdx = -1;
+  let viewerImgIdx  = -1;
 
   // ─── CSS ─────────────────────────────────────────────────────────────────────
   const style = document.createElement('style');
@@ -268,6 +271,188 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
+    /* ─── Thumbnail wrap cursor ─── */
+    .pip-thumb-wrap {
+      cursor: pointer;
+    }
+
+    /* ─── Image Viewer Overlay ─── */
+    #pip-viewer-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2147483648;
+      background: rgba(0, 0, 0, 0.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #pip-viewer-overlay.pip-viewer-hidden {
+      display: none;
+    }
+
+    #pip-viewer-frame {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #pip-viewer-img {
+      max-width: calc(100vw - 240px);
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 0;
+      display: block;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+      user-select: none;
+      pointer-events: none;
+    }
+
+    .pip-viewer-close {
+      position: fixed;
+      top: 32px;
+      right: 32px;
+      width: 40px;
+      height: 40px;
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.75);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s;
+      z-index: 1;
+      padding: 7px;
+      box-sizing: border-box;
+    }
+    .pip-viewer-close:hover {
+      color: #fff;
+    }
+    .pip-viewer-close:active {
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .pip-viewer-nav {
+      position: absolute;
+      top: 50%;
+      width: 56px;
+      height: 56px;
+      background: none;
+      border: none;
+      color: rgba(255, 255, 255, 0.75);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: color 0.15s;
+      z-index: 1;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+    .pip-viewer-nav:hover {
+      color: #fff;
+    }
+    .pip-viewer-nav:active {
+      color: rgba(255, 255, 255, 0.5);
+    }
+    .pip-viewer-nav:disabled {
+      color: rgba(255, 255, 255, 0.2);
+      cursor: not-allowed;
+    }
+
+    #pip-viewer-prev {
+      left: -32px;
+      transform: translate(-100%, -50%);
+    }
+    #pip-viewer-next {
+      right: -32px;
+      transform: translate(100%, -50%);
+    }
+
+    /* Rotate chevron-down to get left/right arrows */
+    #pip-viewer-prev svg { transform: rotate(90deg); }
+    #pip-viewer-next svg { transform: rotate(-90deg); }
+
+    .pip-viewer-thumbstrip {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      max-width: 80vw;
+      overflow-x: auto;
+      padding: 8px 10px;
+      background: rgba(18, 18, 18, 0.78);
+      border-radius: 14px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      scrollbar-width: none;
+    }
+    .pip-viewer-thumbstrip::-webkit-scrollbar { display: none; }
+
+    .pip-viewer-strip-thumb-wrap {
+      position: relative;
+      flex-shrink: 0;
+      width: 52px;
+      height: 52px;
+      cursor: pointer;
+      border-radius: 0;
+      border: none;
+      opacity: 0.5;
+      transition: opacity 0.15s;
+      box-sizing: border-box;
+    }
+    .pip-viewer-strip-thumb-wrap.pip-viewer-thumb-active {
+      opacity: 1;
+    }
+    .pip-viewer-strip-thumb-wrap:not(.pip-viewer-thumb-active):hover {
+      opacity: 0.8;
+    }
+
+    .pip-viewer-strip-thumb {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 0;
+      display: block;
+      pointer-events: none;
+    }
+
+    .pip-viewer-strip-del {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #c62828;
+      color: #fff;
+      cursor: pointer;
+      border: none;
+      padding: 0;
+      opacity: 0;
+      transition: opacity 0.12s;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pip-viewer-strip-thumb-wrap:hover .pip-viewer-strip-del {
+      opacity: 1;
+    }
+    .pip-viewer-strip-del:hover {
+      background: #d32f2f;
+    }
+    .pip-viewer-strip-del:active {
+      background: #b71c1c;
+    }
   `;
   document.head.appendChild(style);
 
@@ -279,6 +464,8 @@
   const IC_TRASH = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5.225 0.553125C5.39375 0.2125 5.74062 0 6.11875 0H9.88125C10.2594 0 10.6062 0.2125 10.775 0.553125L11 1H14C14.5531 1 15 1.44687 15 2C15 2.55312 14.5531 3 14 3H2C1.44687 3 1 2.55312 1 2C1 1.44687 1.44687 1 2 1H5L5.225 0.553125ZM2 4H14V14C14 15.1031 13.1031 16 12 16H4C2.89688 16 2 15.1031 2 14V4ZM5 6C4.725 6 4.5 6.225 4.5 6.5V13.5C4.5 13.775 4.725 14 5 14C5.275 14 5.5 13.775 5.5 13.5V6.5C5.5 6.225 5.275 6 5 6ZM8 6C7.725 6 7.5 6.225 7.5 6.5V13.5C7.5 13.775 7.725 14 8 14C8.275 14 8.5 13.775 8.5 13.5V6.5C8.5 6.225 8.275 6 8 6ZM11 6C10.725 6 10.5 6.225 10.5 6.5V13.5C10.5 13.775 10.725 14 11 14C11.275 14 11.5 13.775 11.5 13.5V6.5C11.5 6.225 11.275 6 11 6Z" fill="currentColor"/></svg>`;
   const IC_FILE  = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.8781 8.30978C16.374 6.81395 16.374 4.39152 14.8781 2.89569C13.5544 1.57196 11.4682 1.39987 9.94589 2.48798L9.90353 2.51711C9.5223 2.7898 9.43493 3.31929 9.70762 3.69788C9.98031 4.07647 10.5098 4.16648 10.8884 3.89379L10.9308 3.86467C11.7806 3.2584 12.9428 3.35371 13.6788 4.09235C14.5128 4.92631 14.5128 6.27652 13.6788 7.11047L10.7084 10.0862C9.87441 10.9202 8.5242 10.9202 7.69025 10.0862C6.9516 9.34759 6.85629 8.18535 7.46256 7.33815L7.49168 7.29579C7.76437 6.91456 7.67436 6.38506 7.29577 6.11502C6.91718 5.84498 6.38504 5.93235 6.115 6.31093L6.08588 6.35329C4.99512 7.87294 5.1672 9.95915 6.49094 11.2829C7.98676 12.7787 10.4092 12.7787 11.905 11.2829L14.8781 8.30978ZM1.12187 7.69027C-0.373955 9.18609 -0.373955 11.6085 1.12187 13.1043C2.4456 14.4281 4.53181 14.6002 6.05411 13.5121L6.09647 13.4829C6.4777 13.2102 6.56507 12.6808 6.29238 12.3022C6.01969 11.9236 5.4902 11.8336 5.11161 12.1063L5.06925 12.1354C4.21941 12.7416 3.05717 12.6463 2.32117 11.9077C1.48722 11.0711 1.48722 9.72088 2.32117 8.88693L5.29164 5.91381C6.12559 5.07986 7.4758 5.07986 8.30975 5.91381C9.0484 6.65246 9.14371 7.8147 8.53744 8.66454L8.50832 8.7069C8.23563 9.08813 8.32564 9.61763 8.70423 9.88767C9.08282 10.1577 9.61496 10.0703 9.885 9.69176L9.91412 9.6494C11.0049 8.1271 10.8328 6.04089 9.50906 4.71716C8.01324 3.22133 5.5908 3.22133 4.09498 4.71716L1.12187 7.69027Z" fill="currentColor"/></svg>`;
   const IC_CLOSE = 'M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z';
+  const IC_VIEWER_CLOSE = `<svg width="26" height="26" viewBox="0 0 26 26" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M22.3995 0.495134C23.2666 -0.212036 24.5453 -0.16164 25.3535 0.646522C26.1617 1.45475 26.2121 2.73343 25.5049 3.6005L25.3535 3.76818L16.1217 13L25.3535 22.2318L25.5049 22.3994C26.2121 23.2665 26.1617 24.5452 25.3535 25.3534C24.5453 26.1616 23.2666 26.212 22.3995 25.5048L22.2319 25.3534L13 16.1216L3.76825 25.3534C2.90613 26.2155 1.5087 26.2155 0.646584 25.3534C-0.215527 24.4913 -0.215529 23.0939 0.646584 22.2318L9.87839 13L0.646584 3.76818L0.495196 3.6005C-0.212048 2.73342 -0.16166 1.45477 0.646584 0.646522C1.45483 -0.161725 2.73349 -0.212111 3.60057 0.495134L3.76825 0.646522L13 9.87831L22.2319 0.646522L22.3995 0.495134Z"/></svg>`;
+  const IC_CHEVRON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="36" height="36" fill="currentColor"><path d="M233.4 406.6c12.5 12.5 32.8 12.5 45.3 0l192-192c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 338.7 86.6 169.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l192 192z"/></svg>`;
   const IC_RIGHT = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12.2366 7.19313C12.6828 7.63941 12.6828 8.36416 12.2366 8.81044L5.38171 15.6653C4.93543 16.1116 4.21068 16.1116 3.7644 15.6653C3.31812 15.219 3.31812 14.4943 3.7644 14.048L9.81237 8L3.76797 1.95202C3.32169 1.50575 3.32169 0.780988 3.76797 0.334709C4.21425 -0.11157 4.939 -0.11157 5.38528 0.334709L12.2401 7.18956L12.2366 7.19313Z" fill="currentColor"/></svg>`;
   const IC_LEFT  = `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" style="transform:rotate(180deg)"><path d="M12.2366 7.19313C12.6828 7.63941 12.6828 8.36416 12.2366 8.81044L5.38171 15.6653C4.93543 16.1116 4.21068 16.1116 3.7644 15.6653C3.31812 15.219 3.31812 14.4943 3.7644 14.048L9.81237 8L3.76797 1.95202C3.32169 1.50575 3.32169 0.780988 3.76797 0.334709C4.21425 -0.11157 4.939 -0.11157 5.38528 0.334709L12.2401 7.18956L12.2366 7.19313Z" fill="currentColor"/></svg>`;
 
@@ -300,6 +487,62 @@
   panels.forEach((p) => container.appendChild(p.el));
   wrapper.appendChild(container);
   document.body.appendChild(wrapper);
+
+  // ─── Image Viewer DOM ─────────────────────────────────────────────────────────
+  const viewerOverlay = document.createElement('div');
+  viewerOverlay.id = 'pip-viewer-overlay';
+  viewerOverlay.className = 'pip-viewer-hidden';
+
+  const viewerCloseBtn = document.createElement('button');
+  viewerCloseBtn.className = 'pip-viewer-close';
+  viewerCloseBtn.innerHTML = IC_VIEWER_CLOSE;
+  viewerCloseBtn.title = 'Закрыть (Esc)';
+  viewerCloseBtn.addEventListener('click', closeViewer);
+
+  const viewerPrevBtn = document.createElement('button');
+  viewerPrevBtn.id = 'pip-viewer-prev';
+  viewerPrevBtn.className = 'pip-viewer-nav';
+  viewerPrevBtn.innerHTML = IC_CHEVRON;
+  viewerPrevBtn.title = 'Предыдущее (←)';
+  viewerPrevBtn.addEventListener('click', () => navigateViewer(-1));
+
+  const viewerNextBtn = document.createElement('button');
+  viewerNextBtn.id = 'pip-viewer-next';
+  viewerNextBtn.className = 'pip-viewer-nav';
+  viewerNextBtn.innerHTML = IC_CHEVRON;
+  viewerNextBtn.title = 'Следующее (→)';
+  viewerNextBtn.addEventListener('click', () => navigateViewer(1));
+
+  const viewerImg = document.createElement('img');
+  viewerImg.id = 'pip-viewer-img';
+  viewerImg.alt = '';
+
+  const viewerFrame = document.createElement('div');
+  viewerFrame.id = 'pip-viewer-frame';
+  viewerFrame.appendChild(viewerPrevBtn);
+  viewerFrame.appendChild(viewerImg);
+  viewerFrame.appendChild(viewerNextBtn);
+
+  const viewerThumbStrip = document.createElement('div');
+  viewerThumbStrip.className = 'pip-viewer-thumbstrip';
+
+  viewerOverlay.appendChild(viewerCloseBtn);
+  viewerOverlay.appendChild(viewerFrame);
+  viewerOverlay.appendChild(viewerThumbStrip);
+  document.body.appendChild(viewerOverlay);
+
+  // Click on backdrop (not on image or controls) → close
+  viewerOverlay.addEventListener('click', (e) => {
+    if (e.target === viewerOverlay) closeViewer();
+  });
+
+  // Keyboard: Esc = close, ← / → = navigate
+  document.addEventListener('keydown', (e) => {
+    if (viewerOverlay.classList.contains('pip-viewer-hidden')) return;
+    if (e.key === 'Escape')      { closeViewer();        e.preventDefault(); }
+    if (e.key === 'ArrowLeft')   { navigateViewer(-1);   e.preventDefault(); }
+    if (e.key === 'ArrowRight')  { navigateViewer(1);    e.preventDefault(); }
+  });
 
   // ─── URL visibility guard ─────────────────────────────────────────────────────
   function isReviewPage() {
@@ -516,7 +759,7 @@
 
     const del = document.createElement('button');
     del.className = 'pip-thumb-del';
-    del.innerHTML = icon(IC_CLOSE, 9);
+    del.innerHTML = icon(IC_CLOSE, 10);
     del.title = 'Удалить';
     del.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -531,6 +774,15 @@
       img.src = dataUrl;
       wrap.appendChild(img);
       wrap.appendChild(del);
+
+      // Click on thumbnail → open viewer (stop propagation to avoid selectPool)
+      wrap.addEventListener('click', (e) => {
+        if (e.target.closest('.pip-thumb-del')) return;
+        e.stopPropagation();
+        const allWraps = Array.from(dropzone.querySelectorAll('.pip-thumb-wrap'));
+        openViewer(idx, allWraps.indexOf(wrap));
+      });
+
       dropzone.appendChild(wrap);
     };
 
@@ -787,5 +1039,79 @@
 
   function delay(ms) {
     return new Promise((r) => setTimeout(r, ms));
+  }
+
+  // ─── Image Viewer ─────────────────────────────────────────────────────────────
+  function openViewer(poolIdx, imgIdx) {
+    viewerPoolIdx = poolIdx;
+    viewerImgIdx  = imgIdx;
+    refreshViewer();
+    viewerOverlay.classList.remove('pip-viewer-hidden');
+  }
+
+  function closeViewer() {
+    viewerOverlay.classList.add('pip-viewer-hidden');
+    viewerPoolIdx = -1;
+    viewerImgIdx  = -1;
+  }
+
+  function navigateViewer(dir) {
+    const n = poolDataUrls[viewerPoolIdx].length;
+    if (n === 0) return;
+    viewerImgIdx = (viewerImgIdx + dir + n) % n; // cyclic
+    refreshViewer();
+  }
+
+  function refreshViewer() {
+    const dataUrls = poolDataUrls[viewerPoolIdx];
+    const n = dataUrls.length;
+    viewerImg.src = dataUrls[viewerImgIdx] || '';
+    // Arrows disabled only when there's a single image (nothing to navigate)
+    viewerPrevBtn.disabled = n <= 1;
+    viewerNextBtn.disabled = n <= 1;
+    // Rebuild thumbnail strip
+    viewerThumbStrip.innerHTML = '';
+    dataUrls.forEach((url, i) => {
+      const tw = document.createElement('div');
+      tw.className = 'pip-viewer-strip-thumb-wrap' +
+        (i === viewerImgIdx ? ' pip-viewer-thumb-active' : '');
+      tw.addEventListener('click', () => {
+        viewerImgIdx = i;
+        refreshViewer();
+      });
+      const ti = document.createElement('img');
+      ti.className = 'pip-viewer-strip-thumb';
+      ti.src = url;
+      ti.alt = '';
+      const td = document.createElement('button');
+      td.className = 'pip-viewer-strip-del';
+      td.innerHTML = icon(IC_CLOSE, 10);
+      td.title = 'Удалить';
+      td.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteViewerImageAt(i);
+      });
+      tw.appendChild(ti);
+      tw.appendChild(td);
+      viewerThumbStrip.appendChild(tw);
+    });
+    // Scroll active thumbnail into view
+    const activeTw = viewerThumbStrip.children[viewerImgIdx];
+    if (activeTw) activeTw.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' });
+  }
+
+  function deleteViewerImageAt(imgIdx) {
+    const dropzone = document.getElementById(`pip-dropzone-${viewerPoolIdx}`);
+    const wraps = Array.from(dropzone.querySelectorAll('.pip-thumb-wrap'));
+    if (imgIdx >= 0 && imgIdx < wraps.length) {
+      removeFromPool(viewerPoolIdx, wraps[imgIdx]);
+    }
+    const n = poolDataUrls[viewerPoolIdx].length;
+    if (n === 0) {
+      closeViewer();
+    } else {
+      viewerImgIdx = Math.min(imgIdx, n - 1);
+      refreshViewer();
+    }
   }
 })();
